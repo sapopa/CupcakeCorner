@@ -14,6 +14,8 @@ struct CheckoutView: View {
     @State private var confirmationMessage = ""
     @State private var showingConfirmation = false
     
+    @State private var hasCheckoutFailed = false
+    
     var body: some View {
         ScrollView {
             VStack {
@@ -39,15 +41,25 @@ struct CheckoutView: View {
         }
         .navigationTitle("Checkout")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Thank you", isPresented: $showingConfirmation){
+        .alert("Thank you", isPresented: $showingConfirmation) {
             Button("OK") {}
         } message: {
             Text(confirmationMessage)
         }
+        .alert("Checkout error", isPresented: $hasCheckoutFailed) {
+            Button("Try again") {
+                Task {
+                    await placeOrder()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Check if you're connected to the internet, otherwise the issue is probably on our end")
+        }
     }
     
     func placeOrder() async {
-        guard let encoded = try? JSONEncoder().encode(order) else {
+        guard let encoded = try? JSONEncoder().encode(order.order) else {
             print("Failed to encode order")
             return
         }
@@ -60,12 +72,12 @@ struct CheckoutView: View {
         do {
             let (data, _) = try await URLSession.shared.upload(for: request, from: encoded)
             
-            let decodedOrder = try JSONDecoder().decode(Order.self, from: data)
+            let decodedOrder = try JSONDecoder().decode(OrderAsStruct.self, from: data)
             
-            confirmationMessage = "Your order for \(decodedOrder.quantity)x \(Order.types[decodedOrder.type].lowercased()) cupcake is on its way!"
+            confirmationMessage = "Your order for \(decodedOrder.quantity)x \(OrderAsStruct.types[decodedOrder.type].lowercased()) cupcake is on its way!"
             showingConfirmation = true
         } catch {
-            print("Checkout failed")
+            hasCheckoutFailed = true
         }
     }
 }
